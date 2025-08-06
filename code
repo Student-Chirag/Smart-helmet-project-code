@@ -1,0 +1,171 @@
+
+
+#include <Wire.h>
+#include <MPU6050.h>
+MPU6050 mpu;
+#include <LiquidCrystal_I2C.h>
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+#include <SoftwareSerial.h> 
+SoftwareSerial gps(3, 4);// rx tx
+#define buzzer 7
+#define relay 5
+#define soss 6
+#define vib A0
+int sos=0,shock=0;
+void setup()
+{
+ lcd.init();
+ lcd.backlight();
+ lcd.clear();
+ lcd.setCursor(0,0);
+ lcd.print("Smart Helmet");
+ pinMode(buzzer,OUTPUT);
+ pinMode(relay,OUTPUT);
+ pinMode(soss,INPUT_PULLUP);
+ pinMode(vib,INPUT);
+ digitalWrite(buzzer,LOW);
+ digitalWrite(relay,HIGH);
+ delay(2000);  
+ lcd.clear();
+ Serial.begin(9600);
+ gps.begin(9600); 
+ Serial.println("Initialize MPU6050");
+ while(!mpu.begin(MPU6050_SCALE_2000DPS, MPU6050_RANGE_2G))
+ {
+  Serial.println("Could not find a valid MPU6050 sensor, check wiring!");
+  delay(500);
+ }
+ checkSettings();
+}
+void checkSettings()
+{
+ Serial.println();  
+ Serial.print(" * Sleep Mode:            ");
+ Serial.println(mpu.getSleepEnabled() ? "Enabled" : "Disabled");
+ Serial.print(" * Clock Source:          ");
+ switch(mpu.getClockSource())
+ {
+  case MPU6050_CLOCK_KEEP_RESET:     Serial.println("Stops the clock and keeps the timing generator in reset"); break;
+  case MPU6050_CLOCK_EXTERNAL_19MHZ: Serial.println("PLL with external 19.2MHz reference"); break;
+  case MPU6050_CLOCK_EXTERNAL_32KHZ: Serial.println("PLL with external 32.768kHz reference"); break;
+  case MPU6050_CLOCK_PLL_ZGYRO:      Serial.println("PLL with Z axis gyroscope reference"); break;
+  case MPU6050_CLOCK_PLL_YGYRO:      Serial.println("PLL with Y axis gyroscope reference"); break;
+  case MPU6050_CLOCK_PLL_XGYRO:      Serial.println("PLL with X axis gyroscope reference"); break;
+  case MPU6050_CLOCK_INTERNAL_8MHZ:  Serial.println("Internal 8MHz oscillator"); break;
+ }
+ Serial.print(" * Accelerometer offsets: ");
+ Serial.print(mpu.getAccelOffsetX());
+ Serial.print(" / ");
+ Serial.print(mpu.getAccelOffsetY());
+ Serial.print(" / ");
+ Serial.println(mpu.getAccelOffsetZ());
+ Serial.println();
+} 
+void loop()
+{
+ Vector rawAccel = mpu.readRawAccel();
+  Vector normAccel = mpu.readNormalizeAccel();
+  Serial.print(" Xnorm = ");
+  Serial.print(normAccel.XAxis);
+  Serial.print(" Ynorm = ");
+  Serial.print(normAccel.YAxis);
+  Serial.print(" Znorm = ");
+  Serial.println(normAccel.ZAxis);
+ 
+ if(normAccel.XAxis>7)
+ {
+  lcd.clear();
+  digitalWrite(buzzer,HIGH);
+  digitalWrite(relay,HIGH);
+  lcd.setCursor(0,0);
+  lcd.print("accident detect");
+  lcd.setCursor(0,1);
+  lcd.print("sms sending....");
+  tracking();
+  lcd.clear();
+  Serial.println("Accident occur");     
+  digitalWrite(buzzer,LOW);
+ }
+  
+ else if(normAccel.XAxis<-7)
+ {
+  lcd.clear();
+  digitalWrite(buzzer,HIGH);
+  digitalWrite(relay,HIGH);
+  lcd.setCursor(0,0);
+  lcd.print("accident detect");
+  lcd.setCursor(0,1);
+  lcd.print("sms sending....");
+  tracking();
+  lcd.clear();
+  Serial.println("Accident occur");     
+  digitalWrite(buzzer,LOW);
+ }
+ 
+ else if(normAccel.YAxis>7)
+ {
+  lcd.clear();
+  digitalWrite(buzzer,HIGH);
+  digitalWrite(relay,HIGH);
+  lcd.setCursor(0,0);
+  lcd.print("accident detect");
+  lcd.setCursor(0,1);
+  lcd.print("sms sending....");
+  tracking();
+  lcd.clear();
+  Serial.println("Accident occur");     
+  digitalWrite(buzzer,LOW);
+ }
+ 
+ else if(normAccel.YAxis<-7)
+ {
+  lcd.clear();
+  digitalWrite(soss,HIGH);
+  digitalWrite(buzzer,HIGH);
+  digitalWrite(relay,HIGH);
+  lcd.setCursor(0,0);
+  lcd.print("accident detect");
+  lcd.setCursor(0,1);
+  lcd.print("sms sending....");
+  tracking();
+  lcd.clear();
+  Serial.println("Accident occur");     
+  digitalWrite(buzzer,LOW);
+ }
+ else
+ { 
+  digitalWrite(relay,LOW);
+  lcd.setCursor(0,0);
+  lcd.print("---safe drive---");
+ } 
+}
+  
+ void init_sms1()
+ {
+  gps.println("AT+CMGF=1");
+  delay(400);
+  gps.println("AT+CMGS=\"+919528253265\"");   // use your 10 digit cell no. here
+  delay(400);
+ }
+void send_data(String message)
+{
+  gps.println(message);
+  delay(200);
+}
+
+void send_sms()
+{
+  gps.write(26);
+}
+void tracking()
+{
+  digitalWrite(buzzer,HIGH);
+  lcd.setCursor(0,1);
+  lcd.print("sending sms.......");
+  init_sms1();
+  send_data("Accident detection");
+  send_sms();
+  delay(6000);
+  digitalWrite(buzzer,LOW);
+  lcd.clear();
+}
